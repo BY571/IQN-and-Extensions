@@ -51,6 +51,7 @@ class IQN(nn.Module):
         super(IQN, self).__init__()
         self.seed = torch.manual_seed(seed)
         self.input_shape = state_size
+        self.state_dim = len(self.input_shape)
         self.action_size = action_size
         self.K = 32
         self.N = 8
@@ -65,9 +66,23 @@ class IQN(nn.Module):
             layer = nn.Linear
 
         # Network Architecture
-        self.head = layer(self.input_shape[0], layer_size) # cound be a cnn 
-        self.cos_embedding = layer(self.n_cos, layer_size)
-        self.ff_1 = layer(layer_size, layer_size)
+        if self.state_dim == 3:
+            self.head = nn.Sequential(
+                nn.Conv2d(4, out_channels=32, kernel_size=8, stride=4),
+                nn.ReLU(),
+                nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2),
+                nn.ReLU(),
+                nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
+            )#.apply() #weight init
+            self.cos_embedding = layer(self.n_cos, self.calc_input_layer())
+            self.ff_1 = layer(self.calc_input_layer(), layer_size)
+            self.cos_layer_out = self.calc_input_layer()
+            print(self.cos_layer_out)
+        else:
+            self.head = layer(self.input_shape[0], layer_size) 
+            self.cos_embedding = layer(self.n_cos, layer_size)
+            self.ff_1 = layer(layer_size, layer_size)
+            self.cos_layer_out = layer_size
         if dueling:
             self.advantage = layer(layer_size, action_size)
             self.value = layer(layer_size, 1)
@@ -76,7 +91,10 @@ class IQN(nn.Module):
             self.ff_2 = layer(layer_size, action_size)    
             #weight_init([self.head_1, self.ff_1])
 
-
+    def calc_input_layer(self):
+        x = torch.zeros(self.input_shape).unsqueeze(0)
+        x = self.head(x)
+        return x.flatten().shape[0]
         
     def calc_cos(self, batch_size, n_tau=8):
         """
@@ -100,12 +118,13 @@ class IQN(nn.Module):
         batch_size = input.shape[0]
         
         x = torch.relu(self.head(input))
+        if self.state_dim == 3: x = x.view(input.size(0), -1)
         cos, taus = self.calc_cos(batch_size, num_tau) # cos shape (batch, num_tau, layer_size)
         cos = cos.view(batch_size*num_tau, self.n_cos)
-        cos_x = torch.relu(self.cos_embedding(cos)).view(batch_size, num_tau, self.layer_size) # (batch, n_tau, layer)
+        cos_x = torch.relu(self.cos_embedding(cos)).view(batch_size, num_tau, self.cos_layer_out) # (batch, n_tau, layer)
         
         # x has shape (batch, layer_size) for multiplication –> reshape to (batch, 1, layer)
-        x = (x.unsqueeze(1)*cos_x).view(batch_size*num_tau, self.layer_size)
+        x = (x.unsqueeze(1)*cos_x).view(batch_size*num_tau, self.cos_layer_out)
         
         x = torch.relu(self.ff_1(x))
         if self.dueling:

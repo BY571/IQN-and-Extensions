@@ -10,13 +10,17 @@ from collections import deque, namedtuple
 import time
 import gym
 import argparse
+import wrapper
 
 
 def evaluate(eps, frame, eval_runs=5):
     """
     Makes an evaluation run with the current epsilon
     """
-    env = gym.make(env_name)
+    if "-ram" in env_name or env_name == "CartPole-v0" or env_name == "LunarLander-v2": 
+        env = gym.make(env_name)
+    else:
+        env = wrapper.make_env(env_name)
     reward_batch = []
     for i in range(eval_runs):
         state = env.reset()
@@ -135,7 +139,10 @@ if __name__ == "__main__":
     print("Using ", device)
 
     np.random.seed(seed)
-    env = gym.make(env_name)
+    if "-ram" in args.env or args.env == "CartPole-v0" or args.env == "LunarLander-v2": 
+        env = gym.make(args.env)
+    else:
+        env = wrapper.make_env(args.env)
 
     env.seed(seed)
     action_size = env.action_space.n
