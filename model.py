@@ -74,13 +74,13 @@ class IQN(nn.Module):
                 nn.ReLU(),
                 nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
             )#.apply() #weight init
-            self.cos_embedding = layer(self.n_cos, self.calc_input_layer())
+            self.cos_embedding = nn.Linear(self.n_cos, self.calc_input_layer())
             self.ff_1 = layer(self.calc_input_layer(), layer_size)
             self.cos_layer_out = self.calc_input_layer()
             print(self.cos_layer_out)
         else:
-            self.head = layer(self.input_shape[0], layer_size) 
-            self.cos_embedding = layer(self.n_cos, layer_size)
+            self.head = nn.Linear(self.input_shape[0], layer_size) 
+            self.cos_embedding = nn.Linear(self.n_cos, layer_size)
             self.ff_1 = layer(layer_size, layer_size)
             self.cos_layer_out = layer_size
         if dueling:
