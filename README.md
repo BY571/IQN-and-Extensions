@@ -58,6 +58,10 @@ Dueling IQN and Extensions (default hyperparameter):
 ![alttext](/imgs/Dueling_IQN_CP_.png)
 
 
+## ToDo:
+- Comparison plot for n-step bootstrapping
+- Performance plot for Pong compared with Rainbow
+- adding [Munchausen](https://medium.com/analytics-vidhya/munchausen-reinforcement-learning-9876efc829de) RL 
 
 
 ## Help and issues:
