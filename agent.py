@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import torch.optim as optim
 from torch.nn.utils import clip_grad_norm_
+import torch.nn.functional as F
 import random
 import math
 from ReplayBuffers import ReplayBuffer, PrioritizedReplay
@@ -14,6 +15,7 @@ class IQN_Agent():
                  state_size,
                  action_size,
                  network,
+                 munchausen,
                  layer_size,
                  n_step,
                  BATCH_SIZE,
@@ -43,9 +45,14 @@ class IQN_Agent():
         self.state_size = state_size
         self.action_size = action_size
         self.network = network
+        self.munchausen = munchausen
         self.seed = random.seed(seed)
         self.device = device
         self.TAU = TAU
+        self.N = 8
+        self.entropy_tau = 0.03
+        self.lo = -1
+        self.alpha = 0.9
         self.GAMMA = GAMMA
         self.UPDATE_EVERY = UPDATE_EVERY
         self.BATCH_SIZE = BATCH_SIZE
@@ -67,8 +74,8 @@ class IQN_Agent():
 
         
         # IQN-Network
-        self.qnetwork_local = IQN(state_size, action_size,layer_size, n_step, seed, dueling=duel, noisy=noisy).to(device)
-        self.qnetwork_target = IQN(state_size, action_size,layer_size, n_step, seed, dueling=duel, noisy=noisy).to(device)
+        self.qnetwork_local = IQN(state_size, action_size,layer_size, n_step, seed, dueling=duel, noisy=noisy, munchausen=munchausen, device=device).to(device)
+        self.qnetwork_target = IQN(state_size, action_size,layer_size, n_step, seed, dueling=duel, noisy=noisy, munchausen=munchausen, device=device).to(device)
 
         self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
         print(self.qnetwork_local)
@@ -143,30 +150,76 @@ class IQN_Agent():
             gamma (float): discount factor
         """
         self.optimizer.zero_grad()
-        states, actions, rewards, next_states, dones = experiences
-        # Get max predicted Q values (for next states) from target model
-        Q_targets_next, _ = self.qnetwork_target(next_states)
-        Q_targets_next = Q_targets_next.detach().max(2)[0].unsqueeze(1) # (batch_size, 1, N)
-        
-        # Compute Q targets for current states 
-        Q_targets = rewards.unsqueeze(-1) + (self.GAMMA**self.n_step * Q_targets_next * (1. - dones.unsqueeze(-1)))
-        # Get expected Q values from local model
-        Q_expected, taus = self.qnetwork_local(states)
-        Q_expected = Q_expected.gather(2, actions.unsqueeze(-1).expand(self.BATCH_SIZE, 8, 1))
+        if not self.munchausen:
+            states, actions, rewards, next_states, dones = experiences
+            # Get max predicted Q values (for next states) from target model
+            Q_targets_next, _ = self.qnetwork_target(next_states)
+            Q_targets_next = Q_targets_next.detach().max(2)[0].unsqueeze(1) # (batch_size, 1, N)
+            
+            # Compute Q targets for current states 
+            Q_targets = rewards.unsqueeze(-1) + (self.GAMMA**self.n_step * Q_targets_next * (1. - dones.unsqueeze(-1)))
+            # Get expected Q values from local model
+            Q_expected, taus = self.qnetwork_local(states)
+            Q_expected = Q_expected.gather(2, actions.unsqueeze(-1).expand(self.BATCH_SIZE, self.N, 1))
 
-        # Quantile Huber loss
-        td_error = Q_targets - Q_expected
-        assert td_error.shape == (self.BATCH_SIZE, 8, 8), "wrong td error shape"
-        huber_l = calculate_huber_loss(td_error, 1.0)
-        quantil_l = abs(taus -(td_error.detach() < 0).float()) * huber_l / 1.0
-        
-        loss = quantil_l.sum(dim=1).mean(dim=1) # , keepdim=True if per weights get multipl
-        loss = loss.mean()
+            # Quantile Huber loss
+            td_error = Q_targets - Q_expected
+            assert td_error.shape == (self.BATCH_SIZE, self.N, self.N), "wrong td error shape"
+            huber_l = calculate_huber_loss(td_error, 1.0)
+            quantil_l = abs(taus -(td_error.detach() < 0).float()) * huber_l / 1.0
+            
+            loss = quantil_l.sum(dim=1).mean(dim=1) # , keepdim=True if per weights get multipl
+            loss = loss.mean()
+        else:
+            states, actions, rewards, next_states, dones = experiences
+            Q_targets_next, _ = self.qnetwork_target(next_states)
+            Q_targets_next = Q_targets_next.detach() #(batch, num_tau, actions)
+            # calculate log-pi 
+            logsum = torch.logsumexp(\
+                (Q_targets_next - Q_targets_next.max(2)[0].unsqueeze(-1))/self.entropy_tau, 2).unsqueeze(-1) #logsum trick
+            assert logsum.shape == (self.BATCH_SIZE, self.N, 1), "log pi next has wrong shape"
+            tau_log_pi_next = Q_targets_next - Q_targets_next.max(2)[0].unsqueeze(-1) - self.entropy_tau*logsum
+            
+            pi_target = F.softmax(Q_targets_next, dim=2)#/self.entropy_tau
+
+            Q_target = (self.GAMMA**self.n_step * (pi_target * (Q_targets_next-tau_log_pi_next)*(1 - dones.unsqueeze(-1))).sum(2)).unsqueeze(1)
+            assert Q_target.shape == (self.BATCH_SIZE, 1, self.N)
+
+            q_k_target, _ = self.qnetwork_target(states)
+            q_k_target = q_k_target.detach()
+
+            v_k_target = q_k_target.max(2)[0].unsqueeze(-1) # (8,8,1)
+
+            tau_log_pik = q_k_target - v_k_target - self.entropy_tau*torch.logsumexp(\
+                                                                    (q_k_target - v_k_target)/self.entropy_tau, 2).unsqueeze(-1)
+
+            assert tau_log_pik.shape == (self.BATCH_SIZE, self.N, 2), "shape instead is {}".format(tau_log_pik.shape)
+            munchausen_addon = tau_log_pik.gather(2, actions.unsqueeze(-1).expand(self.BATCH_SIZE, self.N, 1))
+            
+            # calc munchausen reward:
+            munchausen_reward = (rewards.unsqueeze(-1) + self.alpha*torch.clamp(munchausen_addon, min=self.lo, max=0)).view(self.BATCH_SIZE, 1, self.N)
+            assert munchausen_reward.shape == (self.BATCH_SIZE, 1, self.N)
+            # Compute Q targets for current states 
+            Q_targets = munchausen_reward + Q_target
+            # Get expected Q values from local model
+            q_k, taus = self.qnetwork_local(states)
+            Q_expected = q_k.gather(2, actions.unsqueeze(-1).expand(self.BATCH_SIZE, self.N, 1))
+            assert Q_expected.shape == (self.BATCH_SIZE, self.N, 1)
+
+            # Quantile Huber loss
+            td_error = Q_targets - Q_expected
+            assert td_error.shape == (self.BATCH_SIZE, self.N, self.N), "wrong td error shape"
+            huber_l = calculate_huber_loss(td_error, 1.0)
+            quantil_l = abs(taus -(td_error.detach() < 0).float()) * huber_l / 1.0
+            
+            loss = quantil_l.sum(dim=1).mean(dim=1) # , keepdim=True if per weights get multipl
+            loss = loss.mean()
 
 
         # Minimize the loss
         loss.backward()
         #clip_grad_norm_(self.qnetwork_local.parameters(),1)
+
         self.optimizer.step()
 
         # ------------------- update target network ------------------- #
@@ -181,33 +234,85 @@ class IQN_Agent():
                 gamma (float): discount factor
             """
             self.optimizer.zero_grad()
-            states, actions, rewards, next_states, dones, idx, weights = experiences
-            
-            states = torch.FloatTensor(states).to(self.device)
-            next_states = torch.FloatTensor(np.float32(next_states)).to(self.device)
-            actions = torch.LongTensor(actions).to(self.device).unsqueeze(1)
-            rewards = torch.FloatTensor(rewards).to(self.device).unsqueeze(1) 
-            dones = torch.FloatTensor(dones).to(self.device).unsqueeze(1)
-            weights = torch.FloatTensor(weights).unsqueeze(1).to(self.device)
+            if not self.munchausen:
+                states, actions, rewards, next_states, dones, idx, weights = experiences
+                
+                states = torch.FloatTensor(states).to(self.device)
+                next_states = torch.FloatTensor(np.float32(next_states)).to(self.device)
+                actions = torch.LongTensor(actions).to(self.device).unsqueeze(1)
+                rewards = torch.FloatTensor(rewards).to(self.device).unsqueeze(1) 
+                dones = torch.FloatTensor(dones).to(self.device).unsqueeze(1)
+                weights = torch.FloatTensor(weights).unsqueeze(1).to(self.device)
 
-            # Get max predicted Q values (for next states) from target model
-            Q_targets_next, _ = self.qnetwork_target(next_states)
-            Q_targets_next = Q_targets_next.detach().max(2)[0].unsqueeze(1) # (batch_size, 1, N)
-            
-            # Compute Q targets for current states 
-            Q_targets = rewards.unsqueeze(-1) + (self.GAMMA**self.n_step * Q_targets_next * (1. - dones.unsqueeze(-1)))
-            # Get expected Q values from local model
-            Q_expected, taus = self.qnetwork_local(states)
-            Q_expected = Q_expected.gather(2, actions.unsqueeze(-1).expand(self.BATCH_SIZE, 8, 1))
+                # Get max predicted Q values (for next states) from target model
+                Q_targets_next, _ = self.qnetwork_target(next_states)
+                Q_targets_next = Q_targets_next.detach().max(2)[0].unsqueeze(1) # (batch_size, 1, N)
+                
+                # Compute Q targets for current states 
+                Q_targets = rewards.unsqueeze(-1) + (self.GAMMA**self.n_step * Q_targets_next * (1. - dones.unsqueeze(-1)))
+                # Get expected Q values from local model
+                Q_expected, taus = self.qnetwork_local(states)
+                Q_expected = Q_expected.gather(2, actions.unsqueeze(-1).expand(self.BATCH_SIZE, self.N, 1))
 
-            # Quantile Huber loss
-            td_error = Q_targets - Q_expected
-            assert td_error.shape == (self.BATCH_SIZE, 8, 8), "wrong td error shape"
-            huber_l = calculate_huber_loss(td_error, 1.0)
-            quantil_l = abs(taus -(td_error.detach() < 0).float()) * huber_l / 1.0
-            
-            loss = quantil_l.sum(dim=1).mean(dim=1, keepdim=True)* weights # , keepdim=True if per weights get multipl
-            loss = loss.mean()
+                # Quantile Huber loss
+                td_error = Q_targets - Q_expected
+                assert td_error.shape == (self.BATCH_SIZE, self.N, self.N), "wrong td error shape"
+                huber_l = calculate_huber_loss(td_error, 1.0)
+                quantil_l = abs(taus -(td_error.detach() < 0).float()) * huber_l / 1.0
+                
+                loss = quantil_l.sum(dim=1).mean(dim=1, keepdim=True)* weights # , keepdim=True if per weights get multipl
+                loss = loss.mean()
+            else:
+                states, actions, rewards, next_states, dones, idx, weights = experiences
+                states = torch.FloatTensor(states).to(self.device)
+                next_states = torch.FloatTensor(np.float32(next_states)).to(self.device)
+                actions = torch.LongTensor(actions).to(self.device).unsqueeze(1)
+                rewards = torch.FloatTensor(rewards).to(self.device).unsqueeze(1) 
+                dones = torch.FloatTensor(dones).to(self.device).unsqueeze(1)
+                weights = torch.FloatTensor(weights).unsqueeze(1).to(self.device)
+
+                Q_targets_next, _ = self.qnetwork_target(next_states)
+                Q_targets_next = Q_targets_next.detach() #(batch, num_tau, actions)
+                # calculate log-pi 
+                logsum = torch.logsumexp(\
+                    (Q_targets_next - Q_targets_next.max(2)[0].unsqueeze(-1))/self.entropy_tau, 2).unsqueeze(-1) #logsum trick
+                assert logsum.shape == (self.BATCH_SIZE, self.N, 1), "log pi next has wrong shape"
+                tau_log_pi_next = Q_targets_next - Q_targets_next.max(2)[0].unsqueeze(-1) - self.entropy_tau*logsum
+                
+                pi_target = F.softmax(Q_targets_next, dim=2)#/self.entropy_tau
+
+                Q_target = (self.GAMMA**self.n_step * (pi_target * (Q_targets_next-tau_log_pi_next)*(1 - dones.unsqueeze(-1))).sum(2)).unsqueeze(1)
+                assert Q_target.shape == (self.BATCH_SIZE, 1, self.N)
+
+                q_k_target, _ = self.qnetwork_target(states)
+                q_k_target = q_k_target.detach()
+
+                v_k_target = q_k_target.max(2)[0].unsqueeze(-1) # (8,8,1)
+
+                tau_log_pik = q_k_target - v_k_target - self.entropy_tau*torch.logsumexp(\
+                                                                        (q_k_target - v_k_target)/self.entropy_tau, 2).unsqueeze(-1)
+
+                assert tau_log_pik.shape == (self.BATCH_SIZE, self.N, 2), "shape instead is {}".format(tau_log_pik.shape)
+                munchausen_addon = tau_log_pik.gather(2, actions.unsqueeze(-1).expand(self.BATCH_SIZE, self.N, 1))
+                
+                # calc munchausen reward:
+                munchausen_reward = (rewards.unsqueeze(-1) + self.alpha*torch.clamp(munchausen_addon, min=self.lo, max=0)).view(self.BATCH_SIZE, 1, self.N)
+                assert munchausen_reward.shape == (self.BATCH_SIZE, 1, self.N)
+                # Compute Q targets for current states 
+                Q_targets = munchausen_reward + Q_target
+                # Get expected Q values from local model
+                q_k, taus = self.qnetwork_local(states)
+                Q_expected = q_k.gather(2, actions.unsqueeze(-1).expand(self.BATCH_SIZE, self.N, 1))
+                assert Q_expected.shape == (self.BATCH_SIZE, self.N, 1)
+
+                # Quantile Huber loss
+                td_error = Q_targets - Q_expected
+                assert td_error.shape == (self.BATCH_SIZE, self.N, self.N), "wrong td error shape"
+                huber_l = calculate_huber_loss(td_error, 1.0)
+                quantil_l = abs(taus -(td_error.detach() < 0).float()) * huber_l / 1.0
+                
+                loss = quantil_l.sum(dim=1).mean(dim=1, keepdim=True)* weights # , keepdim=True if per weights get multipl
+                loss = loss.mean()
 
 
             # Minimize the loss
