@@ -6,6 +6,13 @@ PyTorch Implementation of Implicit Quantile Networks (IQN) for Distributional Re
 - Baseline IQN [Notebook](https://github.com/BY571/IQN/blob/master/IQN-DQN.ipynb)
 - Script Version with all extensions: [IQN](https://github.com/BY571/IQN/blob/master/run.py)
 
+### Extensions
+- Dueling IQN
+- Noisy layer
+- N-step bootstrapping 
+- [Munchausen](https://medium.com/analytics-vidhya/munchausen-reinforcement-learning-9876efc829de) RL 
+
+## Train
 With the script version it is possible to train on simple environments like CartPole-v0 and LunarLander-v2 or on Atari games with image inputs!
 
 To run the script version:
@@ -24,6 +31,7 @@ To see the options:
     -eval_every, Evaluate every x frames, default = 1000
     -eval_runs, Number of evaluation runs, default = 5")
     -seed, Random seed to replicate training runs, default = 1
+    -munchausen, choices=[0,1], Use Munchausen RL loss for training if set to 1 (True), default = 0
     -bs, --batch_size, Batch size for updating the DQN, default = 8
     -layer_size, Size of the hidden layer, default=512
     -n_step, Multistep IQN, default = 1
