@@ -119,14 +119,14 @@ if __name__ == "__main__":
     parser.add_argument("-u", "--update_every", type=int, default=1, help="Update the network every x steps, default = 1")
     parser.add_argument("-lr", type=float, default=5e-4, help="Learning rate, default = 5e-4")
     parser.add_argument("-g", "--gamma", type=float, default=0.99, help="Discount factor gamma, default = 0.99")
-    parser.add_argument("-t", "--tau", type=float, default=1e-2, help="Soft update parameter tat, default = 1e-2")
+    parser.add_argument("-t", "--tau", type=float, default=1e-1, help="Soft update parameter tat, default = 1e-1")
     parser.add_argument("-eps_frames", type=int, default=5000, help="Linear annealed frames for Epsilon, default = 5000")
     parser.add_argument("-min_eps", type=float, default = 0.025, help="Final epsilon greedy value, default = 0.025")
     parser.add_argument("-info", type=str, help="Name of the training run")
     parser.add_argument("-save_model", type=int, choices=[0,1], default=0, help="Specify if the trained network shall be saved or not, default is 0 - not saved!")
 
     args = parser.parse_args()
-    writer = SummaryWriter("runs/"+args.info)
+    writer = SummaryWriter("runs/"+args.info)       
     seed = args.seed
     BUFFER_SIZE = args.memory_size
     BATCH_SIZE = args.batch_size
