@@ -60,7 +60,7 @@ def run(frames=1000, eps_fixed=False, eps_frames=1e6, min_eps=0.01, eval_every=1
     i_episode = 1
     state = env.reset()
     score = 0                  
-    for frame in range(1, frames+1):
+    for frame in range(frames+1):
 
         action = agent.act(state, eps)
         next_state, reward, done, _ = env.step(action)
