@@ -153,11 +153,12 @@ class IQN_Agent():
         if not self.munchausen:
             states, actions, rewards, next_states, dones = experiences
             # Get max predicted Q values (for next states) from target model
-            Q_targets_next, _ = self.qnetwork_target(next_states)
-            Q_targets_next = Q_targets_next.detach().max(2)[0].unsqueeze(1) # (batch_size, 1, N)
-            
+            Q_targets_next, _ = self.qnetwork_target(next_states) 
+            Q_targets_next = Q_targets_next.detach().cpu()
+            action_indx = torch.argmax(Q_targets_next.mean(dim=1), dim=1, keepdim=True)
+            Q_targets_next = Q_targets_next.gather(2, action_indx.unsqueeze(-1).expand(self.BATCH_SIZE, self.N, 1)).transpose(1,2)
             # Compute Q targets for current states 
-            Q_targets = rewards.unsqueeze(-1) + (self.GAMMA**self.n_step * Q_targets_next * (1. - dones.unsqueeze(-1)))
+            Q_targets = rewards.unsqueeze(-1) + (self.GAMMA**self.n_step * Q_targets_next.to(self.device) * (1. - dones.unsqueeze(-1)))
             # Get expected Q values from local model
             Q_expected, taus = self.qnetwork_local(states)
             Q_expected = Q_expected.gather(2, actions.unsqueeze(-1).expand(self.BATCH_SIZE, self.N, 1))
@@ -245,11 +246,12 @@ class IQN_Agent():
                 weights = torch.FloatTensor(weights).unsqueeze(1).to(self.device)
 
                 # Get max predicted Q values (for next states) from target model
-                Q_targets_next, _ = self.qnetwork_target(next_states)
-                Q_targets_next = Q_targets_next.detach().max(2)[0].unsqueeze(1) # (batch_size, 1, N)
-                
+                Q_targets_next, _ = self.qnetwork_target(next_states) 
+                Q_targets_next = Q_targets_next.detach().cpu()
+                action_indx = torch.argmax(Q_targets_next.mean(dim=1), dim=1, keepdim=True)
+                Q_targets_next = Q_targets_next.gather(2, action_indx.unsqueeze(-1).expand(self.BATCH_SIZE, self.N, 1)).transpose(1,2)
                 # Compute Q targets for current states 
-                Q_targets = rewards.unsqueeze(-1) + (self.GAMMA**self.n_step * Q_targets_next * (1. - dones.unsqueeze(-1)))
+                Q_targets = rewards.unsqueeze(-1) + (self.GAMMA**self.n_step * Q_targets_next.to(self.device) * (1. - dones.unsqueeze(-1)))
                 # Get expected Q values from local model
                 Q_expected, taus = self.qnetwork_local(states)
                 Q_expected = Q_expected.gather(2, actions.unsqueeze(-1).expand(self.BATCH_SIZE, self.N, 1))
