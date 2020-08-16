@@ -136,7 +136,7 @@ class IQN(nn.Module):
         
         return out.view(batch_size, num_tau, self.action_size), taus
     
-    def get_action(self, inputs):
+    def get_qvalues(self, inputs):
         quantiles, _ = self.forward(inputs, self.K)
         actions = quantiles.mean(dim=1)
         return actions  

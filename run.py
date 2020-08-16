@@ -112,7 +112,7 @@ if __name__ == "__main__":
     parser.add_argument("-eval_runs", type=int, default=5, help="Number of evaluation runs, default = 5")
     parser.add_argument("-seed", type=int, default=1, help="Random seed to replicate training runs, default = 1")
     parser.add_argument("-munchausen", type=int, default=0, choices=[0,1], help="Use Munchausen RL loss for training if set to 1 (True), default = 0")
-    parser.add_argument("-bs", "--batch_size", type=int, default=8, help="Batch size for updating the DQN, default = 8")
+    parser.add_argument("-bs", "--batch_size", type=int, default=32, help="Batch size for updating the DQN, default = 32")
     parser.add_argument("-layer_size", type=int, default=512, help="Size of the hidden layer, default=512")
     parser.add_argument("-n_step", type=int, default=1, help="Multistep IQN, default = 1")
     parser.add_argument("-m", "--memory_size", type=int, default=int(1e5), help="Replay memory size, default = 1e5")
