@@ -53,7 +53,6 @@ class IQN(nn.Module):
         self.input_shape = state_size
         self.state_dim = len(self.input_shape)
         self.action_size = action_size
-        self.K = 32
         self.N = 8
         self.n_cos = 64
         self.layer_size = layer_size
@@ -77,7 +76,7 @@ class IQN(nn.Module):
             self.cos_embedding = nn.Linear(self.n_cos, self.calc_input_layer())
             self.ff_1 = layer(self.calc_input_layer(), layer_size)
             self.cos_layer_out = self.calc_input_layer()
-            print(self.cos_layer_out)
+
         else:
             self.head = nn.Linear(self.input_shape[0], layer_size) 
             self.cos_embedding = nn.Linear(self.n_cos, layer_size)
@@ -137,6 +136,6 @@ class IQN(nn.Module):
         return out.view(batch_size, num_tau, self.action_size), taus
     
     def get_qvalues(self, inputs):
-        quantiles, _ = self.forward(inputs, self.K)
+        quantiles, _ = self.forward(inputs, self.N)
         actions = quantiles.mean(dim=1)
         return actions  

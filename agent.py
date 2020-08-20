@@ -50,6 +50,7 @@ class IQN_Agent():
         self.device = device
         self.TAU = TAU
         self.N = 8
+        self.K = 32
         self.entropy_tau = 0.03
         self.lo = -1
         self.alpha = 0.9
@@ -121,10 +122,13 @@ class IQN_Agent():
         if self.action_step == 4:
             state = np.array(state)
 
-            state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+            if len(self.state_size) > 1:
+                state = torch.from_numpy(state).float().unsqueeze(0).to(self.device).expand(self.K, self.state_size[0], self.state_size[1],self.state_size[2])        
+            else:
+                state = torch.from_numpy(state).float().unsqueeze(0).to(self.device).expand(self.K, self.state_size[0])
             self.qnetwork_local.eval()
             with torch.no_grad():
-                action_values = self.qnetwork_local.get_qvalues(state)
+                action_values = self.qnetwork_local.get_qvalues(state).mean(0)
             self.qnetwork_local.train()
 
             # Epsilon-greedy action selection
