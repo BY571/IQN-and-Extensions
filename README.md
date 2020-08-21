@@ -67,7 +67,7 @@ Dueling IQN and Extensions (default hyperparameter):
 
 
 ## ToDo:
-- Comparison plot for n-step bootstrapping
+- Comparison plot for n-step bootstrapping (n-step bootstrapping with n=3 seems to give a strong boost in learning compared to one step bootstrapping, plots will follow) 
 - Performance plot for Pong compared with Rainbow
 - adding [Munchausen](https://medium.com/analytics-vidhya/munchausen-reinforcement-learning-9876efc829de) RL &#x2611;
 
