@@ -47,13 +47,13 @@ def weight_init(layers):
 
 
 class IQN(nn.Module):
-    def __init__(self, state_size, action_size, layer_size, n_step, seed, dueling=False, noisy=False, device="cuda:0"):
+    def __init__(self, state_size, action_size, layer_size, n_step, seed, N, dueling=False, noisy=False, device="cuda:0"):
         super(IQN, self).__init__()
         self.seed = torch.manual_seed(seed)
         self.input_shape = state_size
         self.state_dim = len(self.input_shape)
         self.action_size = action_size
-        self.N = 8
+        self.N = N  
         self.n_cos = 64
         self.layer_size = layer_size
         self.pis = torch.FloatTensor([np.pi*i for i in range(1,self.n_cos+1)]).view(1,1,self.n_cos).to(device) # Starting from 0 as in the paper 

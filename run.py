@@ -1,12 +1,10 @@
 import torch
 from agent import IQN_Agent
 import numpy as np
-import torch.optim as optim
-from torch.nn.utils import clip_grad_norm_
 import random
 import math
 from torch.utils.tensorboard import SummaryWriter
-from collections import deque, namedtuple
+from collections import deque
 import time
 import gym
 import argparse
@@ -102,10 +100,11 @@ if __name__ == "__main__":
                                                      ], default="iqn", help="Specify which type of IQN agent you want to train, default is IQN - baseline!")
     
     parser.add_argument("-env", type=str, default="CartPole-v0", help="Name of the Environment, default = CartPole-v0")
-    parser.add_argument("-frames", type=int, default=60000, help="Number of frames to train, default = 60000")
+    parser.add_argument("-frames", type=int, default=40000, help="Number of frames to train, default = 40000")
     parser.add_argument("-eval_every", type=int, default=1000, help="Evaluate every x frames, default = 1000")
     parser.add_argument("-eval_runs", type=int, default=5, help="Number of evaluation runs, default = 5")
     parser.add_argument("-seed", type=int, default=1, help="Random seed to replicate training runs, default = 1")
+    parser.add_argument("-N", type=int, default=8, help="Number of Quantiles, default = 8")
     parser.add_argument("-munchausen", type=int, default=0, choices=[0,1], help="Use Munchausen RL loss for training if set to 1 (True), default = 0")
     parser.add_argument("-bs", "--batch_size", type=int, default=32, help="Batch size for updating the DQN, default = 32")
     parser.add_argument("-layer_size", type=int, default=512, help="Size of the hidden layer, default=512")
@@ -135,6 +134,8 @@ if __name__ == "__main__":
     print("Using ", device)
 
     np.random.seed(seed)
+    random.seed(seed)
+    torch.manual_seed(seed)
     if "-ram" in args.env or args.env == "CartPole-v0" or args.env == "LunarLander-v2": 
         env = gym.make(args.env)
         eval_env =gym.make(args.env)
@@ -160,6 +161,7 @@ if __name__ == "__main__":
                         TAU=TAU, 
                         GAMMA=GAMMA, 
                         UPDATE_EVERY=UPDATE_EVERY, 
+                        N=args.N,
                         device=device, 
                         seed=seed)
 
