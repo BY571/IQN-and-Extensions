@@ -47,6 +47,7 @@ class IQN_Agent():
         self.network = network
         self.munchausen = munchausen
         self.seed = random.seed(seed)
+        self.seed_t = torch.manual_seed(seed)
         self.device = device
         self.TAU = TAU
         self.N = 8

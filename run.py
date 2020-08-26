@@ -17,17 +17,14 @@ def evaluate(eps, frame, eval_runs=5):
     """
     Makes an evaluation run with the current epsilon
     """
-    if "-ram" in env_name or env_name == "CartPole-v0" or env_name == "LunarLander-v2": 
-        env = gym.make(env_name)
-    else:
-        env = wrapper.make_env(env_name)
+
     reward_batch = []
     for i in range(eval_runs):
-        state = env.reset()
+        state = eval_env.reset()
         rewards = 0
         while True:
             action = agent.act(state, eps)
-            state, reward, done, _ = env.step(action)
+            state, reward, done, _ = eval_env.step(action)
             rewards += reward
             if done:
                 break
@@ -50,7 +47,6 @@ def run(frames=1000, eps_fixed=False, eps_frames=1e6, min_eps=0.01, eval_every=1
     """
     scores = []                        # list containing scores from each episode
     scores_window = deque(maxlen=100)  # last 100 scores
-    output_history = []
     frame = 0
     if eps_fixed:
         eps = 0
@@ -82,7 +78,6 @@ def run(frames=1000, eps_fixed=False, eps_frames=1e6, min_eps=0.01, eval_every=1
             scores_window.append(score)       # save most recent score
             scores.append(score)              # save most recent score
             writer.add_scalar("Average100", np.mean(scores_window), frame)
-            output_history.append(np.mean(scores_window))
             print('\rEpisode {}\tFrame {} \tAverage Score: {:.2f}'.format(i_episode, frame, np.mean(scores_window)), end="")
             if i_episode % 100 == 0:
                 print('\rEpisode {}\tFrame {}\tAverage Score: {:.2f}'.format(i_episode,frame, np.mean(scores_window)))
@@ -90,7 +85,7 @@ def run(frames=1000, eps_fixed=False, eps_frames=1e6, min_eps=0.01, eval_every=1
             state = env.reset()
             score = 0              
 
-    return output_history
+
 
 
 if __name__ == "__main__":
@@ -119,7 +114,7 @@ if __name__ == "__main__":
     parser.add_argument("-u", "--update_every", type=int, default=1, help="Update the network every x steps, default = 1")
     parser.add_argument("-lr", type=float, default=5e-4, help="Learning rate, default = 5e-4")
     parser.add_argument("-g", "--gamma", type=float, default=0.99, help="Discount factor gamma, default = 0.99")
-    parser.add_argument("-t", "--tau", type=float, default=1e-1, help="Soft update parameter tat, default = 1e-1")
+    parser.add_argument("-t", "--tau", type=float, default=1e-2, help="Soft update parameter tau, default = 1e-2")
     parser.add_argument("-eps_frames", type=int, default=5000, help="Linear annealed frames for Epsilon, default = 5000")
     parser.add_argument("-min_eps", type=float, default = 0.025, help="Final epsilon greedy value, default = 0.025")
     parser.add_argument("-info", type=str, help="Name of the training run")
@@ -142,10 +137,14 @@ if __name__ == "__main__":
     np.random.seed(seed)
     if "-ram" in args.env or args.env == "CartPole-v0" or args.env == "LunarLander-v2": 
         env = gym.make(args.env)
+        eval_env =gym.make(args.env)
     else:
         env = wrapper.make_env(args.env)
-
+        eval_env = wrapper.make_env(args.env)
     env.seed(seed)
+    eval_env.seed(seed+1)
+
+
     action_size = env.action_space.n
     state_size = env.observation_space.shape
 
@@ -173,7 +172,7 @@ if __name__ == "__main__":
         eps_fixed = False
 
     t0 = time.time()
-    final_average100 = run(frames = args.frames, eps_fixed=eps_fixed, eps_frames=args.eps_frames, min_eps=args.min_eps, eval_every=args.eval_every, eval_runs=args.eval_runs)
+    run(frames = args.frames, eps_fixed=eps_fixed, eps_frames=args.eps_frames, min_eps=args.min_eps, eval_every=args.eval_every, eval_runs=args.eval_runs)
     t1 = time.time()
     
     print("Training time: {}min".format(round((t1-t0)/60,2)))
