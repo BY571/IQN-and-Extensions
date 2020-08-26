@@ -292,17 +292,17 @@ class IQN_Agent():
                 Q_target = (self.GAMMA**self.n_step * (pi_target * (Q_targets_next-tau_log_pi_next)*(1 - dones.unsqueeze(-1))).sum(2)).unsqueeze(1)
                 assert Q_target.shape == (self.BATCH_SIZE, 1, self.N)
 
-                q_k_target, _ = self.qnetwork_target.get_qvalues(states).detach()
-                v_k_target = q_k_target.max(2)[0].unsqueeze(-1) # (8,8,1)
+                q_k_target = self.qnetwork_target.get_qvalues(states).detach()
+                v_k_target = q_k_target.max(1)[0].unsqueeze(-1) # (8,8,1)
                 tau_log_pik = q_k_target - v_k_target - self.entropy_tau*torch.logsumexp(\
-                                                                        (q_k_target - v_k_target)/self.entropy_tau, 2).unsqueeze(-1)
+                                                                        (q_k_target - v_k_target)/self.entropy_tau, 1).unsqueeze(-1)
 
-                assert tau_log_pik.shape == (self.BATCH_SIZE, self.N, self.action_size), "shape instead is {}".format(tau_log_pik.shape)
-                munchausen_addon = tau_log_pik.gather(2, actions.unsqueeze(-1).expand(self.BATCH_SIZE, self.N, 1))
+                assert tau_log_pik.shape == (self.BATCH_SIZE, self.action_size), "shape instead is {}".format(tau_log_pik.shape)
+                munchausen_addon = tau_log_pik.gather(1, actions) #.unsqueeze(-1).expand(self.BATCH_SIZE, self.N, 1)
                 
                 # calc munchausen reward:
-                munchausen_reward = (rewards.unsqueeze(-1) + self.alpha*torch.clamp(munchausen_addon, min=self.lo, max=0)).view(self.BATCH_SIZE, 1, self.N)
-                assert munchausen_reward.shape == (self.BATCH_SIZE, 1, self.N)
+                munchausen_reward = (rewards + self.alpha*torch.clamp(munchausen_addon, min=self.lo, max=0)).unsqueeze(-1)
+                assert munchausen_reward.shape == (self.BATCH_SIZE, 1, 1)
                 # Compute Q targets for current states 
                 Q_targets = munchausen_reward + Q_target
                 # Get expected Q values from local model
