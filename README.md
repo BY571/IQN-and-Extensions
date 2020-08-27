@@ -66,6 +66,22 @@ Dueling IQN and Extensions (default hyperparameter):
 ![alttext](/imgs/Dueling_IQN_CP_.png)
 
 
+## Atari Results
+IQN and M-IQN comparison (only trained for 500000 frames ~ 140 min).
+
+
+**Hyperparameter:**
+- frames 500000
+- eps_frames 75000
+- min_eps 0.025
+- eval_every 10000 
+- lr 1e-4 
+- t 5e-3 
+- m 15000 
+- N 32
+
+![alttext](/imgs/IQN_MIQN_BREAKOUT_.png)
+
 ## ToDo:
 - Comparison plot for n-step bootstrapping (n-step bootstrapping with n=3 seems to give a strong boost in learning compared to one step bootstrapping, plots will follow) 
 - Performance plot for Pong compared with Rainbow
