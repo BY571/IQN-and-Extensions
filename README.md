@@ -29,12 +29,13 @@ To see the options:
     -env,  Name of the Environment, default = CartPole-v0
     -frames, Number of frames to train, default = 60000
     -eval_every, Evaluate every x frames, default = 1000
-    -eval_runs, Number of evaluation runs, default = 5")
+    -eval_runs, Number of evaluation runs, default = 5
     -seed, Random seed to replicate training runs, default = 1
     -munchausen, choices=[0,1], Use Munchausen RL loss for training if set to 1 (True), default = 0
     -bs, --batch_size, Batch size for updating the DQN, default = 8
     -layer_size, Size of the hidden layer, default=512
     -n_step, Multistep IQN, default = 1
+    -N, Number of quantiles, default = 8
     -m, --memory_size, Replay memory size, default = 1e5
     -u, --update_every, Update the network every x steps, default = 1
     -lr, Learning rate, default = 5e-4
