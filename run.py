@@ -56,7 +56,6 @@ def run(frames=1000, eps_fixed=False, eps_frames=1e6, min_eps=0.01, eval_every=1
     score = 0                  
     for frame in range(1, frames+1):
         action = agent.act(state, eps)
-
         next_state, reward, done, _ = envs.step(action) #returns np.stack(obs), np.stack(action) ...
         for s, a, r, ns, d in zip(state, action, reward, next_state, done):
             agent.step(s, a, r, ns, d, writer)
@@ -77,9 +76,9 @@ def run(frames=1000, eps_fixed=False, eps_frames=1e6, min_eps=0.01, eval_every=1
             scores_window.append(score)       # save most recent score
             scores.append(score)              # save most recent score
             writer.add_scalar("Average100", np.mean(scores_window), frame*worker)
-            print('\rEpisode {}\tFrame {} \tAverage Score: {:.2f}'.format(i_episode, frame*worker, np.mean(scores_window)), end="")
+            print('\rEpisode {}\tFrame {} \tAverage100 Score: {:.2f}'.format(i_episode*worker, frame*worker, np.mean(scores_window)), end="")
             if i_episode % 100 == 0:
-                print('\rEpisode {}\tFrame {}\tAverage Score: {:.2f}'.format(i_episode,frame*worker, np.mean(scores_window)))
+                print('\rEpisode {}\tFrame {}\tAverage100 Score: {:.2f}'.format(i_episode*worker, frame*worker, np.mean(scores_window)))
             i_episode +=1 
             state = envs.reset()
             score = 0              
