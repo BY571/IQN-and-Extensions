@@ -9,7 +9,7 @@ import time
 import gym
 import argparse
 import wrapper
-
+import MultiPro
 
 def evaluate(eps, frame, eval_runs=5):
     """
@@ -21,8 +21,8 @@ def evaluate(eps, frame, eval_runs=5):
         state = eval_env.reset()
         rewards = 0
         while True:
-            action = agent.act(state, eps)
-            state, reward, done, _ = eval_env.step(action)
+            action = agent.act(np.expand_dims(state, axis=0), eps, eval=True)
+            state, reward, done, _ = eval_env.step(action[0].item())
             rewards += reward
             if done:
                 break
@@ -32,7 +32,7 @@ def evaluate(eps, frame, eval_runs=5):
 
 
 
-def run(frames=1000, eps_fixed=False, eps_frames=1e6, min_eps=0.01, eval_every=1000, eval_runs=5):
+def run(frames=1000, eps_fixed=False, eps_frames=1e6, min_eps=0.01, eval_every=1000, eval_runs=5, worker=1):
     """Deep Q-Learning.
     
     Params
@@ -52,15 +52,16 @@ def run(frames=1000, eps_fixed=False, eps_frames=1e6, min_eps=0.01, eval_every=1
         eps = 1
     eps_start = 1
     i_episode = 1
-    state = env.reset()
+    state = envs.reset()
     score = 0                  
-    for frame in range(frames+1):
-
+    for frame in range(1, frames+1):
         action = agent.act(state, eps)
-        next_state, reward, done, _ = env.step(action)
-        agent.step(state, action, reward, next_state, done, writer)
+
+        next_state, reward, done, _ = envs.step(action) #returns np.stack(obs), np.stack(action) ...
+        for s, a, r, ns, d in zip(state, action, reward, next_state, done):
+            agent.step(s, a, r, ns, d, writer)
         state = next_state
-        score += reward
+        score += np.mean(reward)
         # linear annealing to the min epsilon value until eps_frames and from there slowly decease epsilon to 0 until the end of training
         if eps_fixed == False:
             if frame < eps_frames:
@@ -70,17 +71,17 @@ def run(frames=1000, eps_fixed=False, eps_frames=1e6, min_eps=0.01, eval_every=1
 
         # evaluation runs
         if frame % eval_every == 0:
-            evaluate(eps, frame, eval_runs)
+            evaluate(eps, frame*worker, eval_runs)
         
-        if done:
+        if done.any():
             scores_window.append(score)       # save most recent score
             scores.append(score)              # save most recent score
-            writer.add_scalar("Average100", np.mean(scores_window), frame)
-            print('\rEpisode {}\tFrame {} \tAverage Score: {:.2f}'.format(i_episode, frame, np.mean(scores_window)), end="")
+            writer.add_scalar("Average100", np.mean(scores_window), frame*worker)
+            print('\rEpisode {}\tFrame {} \tAverage Score: {:.2f}'.format(i_episode, frame*worker, np.mean(scores_window)), end="")
             if i_episode % 100 == 0:
-                print('\rEpisode {}\tFrame {}\tAverage Score: {:.2f}'.format(i_episode,frame, np.mean(scores_window)))
+                print('\rEpisode {}\tFrame {}\tAverage Score: {:.2f}'.format(i_episode,frame*worker, np.mean(scores_window)))
             i_episode +=1 
-            state = env.reset()
+            state = envs.reset()
             score = 0              
 
 
@@ -110,7 +111,6 @@ if __name__ == "__main__":
     parser.add_argument("-layer_size", type=int, default=512, help="Size of the hidden layer, default=512")
     parser.add_argument("-n_step", type=int, default=1, help="Multistep IQN, default = 1")
     parser.add_argument("-m", "--memory_size", type=int, default=int(1e5), help="Replay memory size, default = 1e5")
-    parser.add_argument("-u", "--update_every", type=int, default=1, help="Update the network every x steps, default = 1")
     parser.add_argument("-lr", type=float, default=5e-4, help="Learning rate, default = 5e-4")
     parser.add_argument("-g", "--gamma", type=float, default=0.99, help="Discount factor gamma, default = 0.99")
     parser.add_argument("-t", "--tau", type=float, default=1e-2, help="Soft update parameter tau, default = 1e-2")
@@ -118,6 +118,7 @@ if __name__ == "__main__":
     parser.add_argument("-min_eps", type=float, default = 0.025, help="Final epsilon greedy value, default = 0.025")
     parser.add_argument("-info", type=str, help="Name of the training run")
     parser.add_argument("-save_model", type=int, choices=[0,1], default=0, help="Specify if the trained network shall be saved or not, default is 0 - not saved!")
+    parser.add_argument("-w", "--worker", type=int, default=1, help="Number of parallel Environments. Batch size increases proportional to number of worker. not recommended to have more than 4 worker, default = 1")
 
     args = parser.parse_args()
     writer = SummaryWriter("runs/"+args.info)       
@@ -127,7 +128,6 @@ if __name__ == "__main__":
     GAMMA = args.gamma
     TAU = args.tau
     LR = args.lr
-    UPDATE_EVERY = args.update_every
     n_step = args.n_step
     env_name = args.env
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -137,17 +137,17 @@ if __name__ == "__main__":
     random.seed(seed)
     torch.manual_seed(seed)
     if "-ram" in args.env or args.env == "CartPole-v0" or args.env == "LunarLander-v2": 
-        env = gym.make(args.env)
-        eval_env =gym.make(args.env)
+        envs = MultiPro.SubprocVecEnv([lambda: gym.make(args.env) for i in range(args.worker)])
+        eval_env = gym.make(args.env)
     else:
-        env = wrapper.make_env(args.env)
+        envs = MultiPro.SubprocVecEnv([lambda: wrapper.make_env(args.env) for i in range(args.worker)])
         eval_env = wrapper.make_env(args.env)
-    env.seed(seed)
+    #env.seed(seed)
     eval_env.seed(seed+1)
 
 
-    action_size = env.action_space.n
-    state_size = env.observation_space.shape
+    action_size = eval_env.action_space.n
+    state_size = eval_env.observation_space.shape
 
     agent = IQN_Agent(state_size=state_size,    
                         action_size=action_size,
@@ -159,9 +159,9 @@ if __name__ == "__main__":
                         BUFFER_SIZE=BUFFER_SIZE, 
                         LR=LR, 
                         TAU=TAU, 
-                        GAMMA=GAMMA, 
-                        UPDATE_EVERY=UPDATE_EVERY, 
+                        GAMMA=GAMMA,  
                         N=args.N,
+                        worker=args.worker,
                         device=device, 
                         seed=seed)
 
@@ -174,7 +174,7 @@ if __name__ == "__main__":
         eps_fixed = False
 
     t0 = time.time()
-    run(frames = args.frames, eps_fixed=eps_fixed, eps_frames=args.eps_frames, min_eps=args.min_eps, eval_every=args.eval_every, eval_runs=args.eval_runs)
+    run(frames = args.frames//args.worker, eps_fixed=eps_fixed, eps_frames=args.eps_frames//args.worker, min_eps=args.min_eps, eval_every=args.eval_every//args.worker, eval_runs=args.eval_runs, worker=args.worker)
     t1 = time.time()
     
     print("Training time: {}min".format(round((t1-t0)/60,2)))

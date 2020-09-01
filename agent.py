@@ -23,8 +23,8 @@ class IQN_Agent():
                  LR,
                  TAU,
                  GAMMA,
-                 UPDATE_EVERY,
                  N,
+                 worker,
                  device,
                  seed):
         """Initialize an Agent object.
@@ -57,12 +57,12 @@ class IQN_Agent():
         self.lo = -1
         self.alpha = 0.9
         self.GAMMA = GAMMA
-        self.UPDATE_EVERY = UPDATE_EVERY
-        self.BATCH_SIZE = BATCH_SIZE
+        
+        self.BATCH_SIZE = BATCH_SIZE * worker
         self.Q_updates = 0
         self.n_step = n_step
-
-        self.action_step = 4
+        self.worker = worker
+        self.UPDATE_EVERY = worker
         self.last_action = None
 
         if "noisy" in self.network:
@@ -86,10 +86,10 @@ class IQN_Agent():
         # Replay memory
         if "per" in self.network:
             self.per = 1
-            self.memory = PrioritizedReplay(BUFFER_SIZE, BATCH_SIZE, seed=seed, gamma=self.GAMMA, n_step=n_step)
+            self.memory = PrioritizedReplay(BUFFER_SIZE, self.BATCH_SIZE, seed=seed, gamma=self.GAMMA, n_step=n_step)
         else:
             self.per = 0
-            self.memory = ReplayBuffer(BUFFER_SIZE, BATCH_SIZE, self.device, seed, self.GAMMA, n_step)
+            self.memory = ReplayBuffer(BUFFER_SIZE, self.BATCH_SIZE, self.device, seed, self.GAMMA, n_step, worker)
         
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
@@ -111,7 +111,7 @@ class IQN_Agent():
                 self.Q_updates += 1
                 writer.add_scalar("Q_loss", loss, self.Q_updates)
 
-    def act(self, state, eps=0.):
+    def act(self, state, eps=0., eval=False):
         """Returns actions for given state as per current policy. Acting only every 4 frames!
         
         Params
@@ -121,31 +121,27 @@ class IQN_Agent():
             
         """
 
-        if self.action_step == 4:
-            state = np.array(state)
 
+        # Epsilon-greedy action selection
+        if random.random() > eps: # select greedy action if random number is higher than epsilon or noisy network is used!
+            state = np.array(state)
             if len(self.state_size) > 1:
-                state = torch.from_numpy(state).float().unsqueeze(0).to(self.device).expand(self.K, self.state_size[0], self.state_size[1],self.state_size[2])        
+                state = torch.from_numpy(state).float().to(self.device)#.expand(self.K, self.state_size[0], self.state_size[1],self.state_size[2])        
             else:
-                state = torch.from_numpy(state).float().unsqueeze(0).to(self.device).expand(self.K, self.state_size[0])
+                state = torch.from_numpy(state).float().to(self.device)#.expand(self.K, self.state_size[0])
             self.qnetwork_local.eval()
             with torch.no_grad():
-                action_values = self.qnetwork_local.get_qvalues(state).mean(0)
+                action_values = self.qnetwork_local.get_qvalues(state)#.mean(0)
             self.qnetwork_local.train()
-
-            # Epsilon-greedy action selection
-            if random.random() > eps: # select greedy action if random number is higher than epsilon or noisy network is used!
-                action = np.argmax(action_values.cpu().data.numpy())
-                self.last_action = action
-                return action
-            else:
-                action = random.choice(np.arange(self.action_size))
-                self.last_action = action 
-                return action
-
+            action = np.argmax(action_values.cpu().data.numpy(), axis=1)
+            return action
         else:
-            self.action_step += 1
-            return self.last_action
+            if eval:
+                action = random.choices(np.arange(self.action_size), k=1)
+            else:
+                action = random.choices(np.arange(self.action_size), k=self.worker)
+            return action
+
 
 
     def learn(self, experiences):

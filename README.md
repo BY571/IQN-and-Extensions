@@ -1,5 +1,7 @@
 # Implicit Quantile Networks (IQN) for Distributional Reinforcement Learning and Extensions
-PyTorch Implementation of Implicit Quantile Networks (IQN) for Distributional Reinforcement Learning with additional extensions like PER, Noisy layer and N-step bootstrapping. Creating a new Rainbow-DQN version.
+PyTorch Implementation of Implicit Quantile Networks (IQN) for Distributional Reinforcement Learning with additional extensions like PER, Noisy layer and N-step bootstrapping. Creating a new Rainbow-DQN version. 
+This implementation allows it also to run and train on several environments in parallel!
+
 
 
 ### Implementations
@@ -11,6 +13,7 @@ PyTorch Implementation of Implicit Quantile Networks (IQN) for Distributional Re
 - Noisy layer
 - N-step bootstrapping 
 - [Munchausen](https://medium.com/analytics-vidhya/munchausen-reinforcement-learning-9876efc829de) RL 
+- Parallel environments for faster training (wall clock time). For CartPole-v0 3 worker reduced training time to 1/3! 
 
 ## Train
 With the script version it is possible to train on simple environments like CartPole-v0 and LunarLander-v2 or on Atari games with image inputs!
@@ -37,13 +40,13 @@ To see the options:
     -n_step, Multistep IQN, default = 1
     -N, Number of quantiles, default = 8
     -m, --memory_size, Replay memory size, default = 1e5
-    -u, --update_every, Update the network every x steps, default = 1
     -lr, Learning rate, default = 5e-4
     -g, --gamma, Discount factor gamma, default = 0.99
     -t, --tau, Soft update parameter tat, default = 1e-2
     -eps_frames, Linear annealed frames for Epsilon, default = 5000
     -min_eps, Final epsilon greedy value, default = 0.025
     -info, Name of the training run
+    -w, --worker, Number of parallel environments. Batch size increases proportional to number of worker. Not recommended to have more than 4 worker, default = 1
     -save_model, choices=[0,1]  Specify if the trained network shall be saved or not, default is 0 - not saved!
 
 ### Observe training results
