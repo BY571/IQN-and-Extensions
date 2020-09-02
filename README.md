@@ -42,7 +42,7 @@ To see the options:
     -m, --memory_size, Replay memory size, default = 1e5
     -lr, Learning rate, default = 5e-4
     -g, --gamma, Discount factor gamma, default = 0.99
-    -t, --tau, Soft update parameter tat, default = 1e-2
+    -t, --tau, Soft update parameter tat, default = 1e-3
     -eps_frames, Linear annealed frames for Epsilon, default = 5000
     -min_eps, Final epsilon greedy value, default = 0.025
     -info, Name of the training run

@@ -69,7 +69,7 @@ def run(frames=1000, eps_fixed=False, eps_frames=1e6, min_eps=0.01, eval_every=1
                 eps = max(min_eps - min_eps*((frame-eps_frames)/(frames-eps_frames)), 0.001)
 
         # evaluation runs
-        if frame % eval_every == 0:
+        if frame % eval_every == 0 or frame == 1:
             evaluate(eps, frame*worker, eval_runs)
         
         if done.any():
@@ -112,7 +112,7 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--memory_size", type=int, default=int(1e5), help="Replay memory size, default = 1e5")
     parser.add_argument("-lr", type=float, default=5e-4, help="Learning rate, default = 5e-4")
     parser.add_argument("-g", "--gamma", type=float, default=0.99, help="Discount factor gamma, default = 0.99")
-    parser.add_argument("-t", "--tau", type=float, default=1e-2, help="Soft update parameter tau, default = 1e-2")
+    parser.add_argument("-t", "--tau", type=float, default=1e-3, help="Soft update parameter tau, default = 1e-3")
     parser.add_argument("-eps_frames", type=int, default=5000, help="Linear annealed frames for Epsilon, default = 5000")
     parser.add_argument("-min_eps", type=float, default = 0.025, help="Final epsilon greedy value, default = 0.025")
     parser.add_argument("-info", type=str, help="Name of the training run")
@@ -141,7 +141,7 @@ if __name__ == "__main__":
     else:
         envs = MultiPro.SubprocVecEnv([lambda: wrapper.make_env(args.env) for i in range(args.worker)])
         eval_env = wrapper.make_env(args.env)
-    #env.seed(seed)
+    envs.seed(seed)
     eval_env.seed(seed+1)
 
 
