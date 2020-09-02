@@ -26,6 +26,8 @@ def worker(remote, parent_remote, env_fn_wrapper):
         elif cmd == 'close':
             remote.close()
             break
+        elif cmd == "seed":
+            env.seed(data)
         elif cmd == 'get_spaces':
             remote.send((env.observation_space, env.action_space))
         else:
@@ -104,6 +106,7 @@ class SubprocVecEnv(VecEnv):
         self.waiting = False
         self.closed = False
         nenvs = len(env_fns)
+
         self.nenvs = nenvs
         self.remotes, self.work_remotes = zip(*[Pipe() for _ in range(nenvs)])
         self.ps = [Process(target=worker, args=(work_remote, remote, CloudpickleWrapper(env_fn)))
@@ -138,6 +141,9 @@ class SubprocVecEnv(VecEnv):
         for remote in self.remotes:
             remote.send(('reset_task', None))
         return np.stack([remote.recv() for remote in self.remotes])
+    def seed(self, seed):
+        for idx, remote in enumerate(self.remotes):
+            remote.send(("seed", seed+idx))
 
     def close(self):
         if self.closed:
