@@ -86,6 +86,10 @@ IQN and M-IQN comparison (only trained for 500000 frames ~ 140 min).
 
 ![alttext](/imgs/IQN_MIQN_BREAKOUT_.png)
 
+Performance after 10 mio frames, score 258 
+
+![](/imgs/Breakout_IQN.gif?)
+
 ## ToDo:
 - Comparison plot for n-step bootstrapping (n-step bootstrapping with n=3 seems to give a strong boost in learning compared to one step bootstrapping, plots will follow) 
 - Performance plot for Pong compared with Rainbow
