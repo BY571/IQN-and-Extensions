@@ -29,10 +29,10 @@ To see the options:
 `python run.py -h`
 
     -agent, choices=["iqn","iqn+per","noisy_iqn","noisy_iqn+per","dueling","dueling+per", "noisy_dueling","noisy_dueling+per"], Specify which type of IQN agent you want to train, default is IQN - baseline!
-    -env,  Name of the Environment, default = CartPole-v0
-    -frames, Number of frames to train, default = 60000
-    -eval_every, Evaluate every x frames, default = 1000
-    -eval_runs, Number of evaluation runs, default = 5
+    -env,  Name of the Environment, default = BreakoutNoFrameskip-v4
+    -frames, Number of frames to train, default = 10 mio
+    -eval_every, Evaluate every x frames, default = 250000
+    -eval_runs, Number of evaluation runs, default = 2
     -seed, Random seed to replicate training runs, default = 1
     -munchausen, choices=[0,1], Use Munchausen RL loss for training if set to 1 (True), default = 0
     -bs, --batch_size, Batch size for updating the DQN, default = 8
@@ -40,11 +40,11 @@ To see the options:
     -n_step, Multistep IQN, default = 1
     -N, Number of quantiles, default = 8
     -m, --memory_size, Replay memory size, default = 1e5
-    -lr, Learning rate, default = 5e-4
+    -lr, Learning rate, default = 2.5e-4
     -g, --gamma, Discount factor gamma, default = 0.99
     -t, --tau, Soft update parameter tat, default = 1e-3
-    -eps_frames, Linear annealed frames for Epsilon, default = 5000
-    -min_eps, Final epsilon greedy value, default = 0.025
+    -eps_frames, Linear annealed frames for Epsilon, default = 1 mio
+    -min_eps, Final epsilon greedy value, default = 0.01
     -info, Name of the training run
     -w, --worker, Number of parallel environments. Batch size increases proportional to number of worker. Not recommended to have more than 4 worker, default = 1
     -save_model, choices=[0,1]  Specify if the trained network shall be saved or not, default is 0 - not saved!

@@ -21,7 +21,7 @@ def evaluate(eps, frame, eval_runs=5):
         state = eval_env.reset()
         rewards = 0
         while True:
-            action = agent.act(np.expand_dims(state, axis=0), eps, eval=True)
+            action = agent.act(np.expand_dims(state, axis=0), 0.001, eval=True)
             state, reward, done, _ = eval_env.step(action[0].item())
             rewards += reward
             if done:
@@ -51,6 +51,7 @@ def run(frames=1000, eps_fixed=False, eps_frames=1e6, min_eps=0.01, eval_every=1
     else:
         eps = 1
     eps_start = 1
+    d_eps = eps_start - min_eps
     i_episode = 1
     state = envs.reset()
     score = 0                  
@@ -61,12 +62,12 @@ def run(frames=1000, eps_fixed=False, eps_frames=1e6, min_eps=0.01, eval_every=1
             agent.step(s, a, r, ns, d, writer)
         state = next_state
         score += np.mean(reward)
-        # linear annealing to the min epsilon value until eps_frames and from there slowly decease epsilon to 0 until the end of training
+        # linear annealing to the min epsilon value (until eps_frames and from there slowly decease epsilon to 0 until the end of training
         if eps_fixed == False:
-            if frame < eps_frames:
-                eps = max(eps_start - (frame*(1/eps_frames)), min_eps)
-            else:
-                eps = max(min_eps - min_eps*((frame-eps_frames)/(frames-eps_frames)), 0.001)
+            #if frame < eps_frames:
+            eps = max(eps_start - ((frame*d_eps)/eps_frames), min_eps)
+            #else:
+            #   eps = max(min_eps - min_eps*((frame-eps_frames)/(frames-eps_frames)), 0.001)
 
         # evaluation runs
         if frame % eval_every == 0 or frame == 1:
@@ -99,10 +100,10 @@ if __name__ == "__main__":
                                                      "noisy_dueling+per"
                                                      ], default="iqn", help="Specify which type of IQN agent you want to train, default is IQN - baseline!")
     
-    parser.add_argument("-env", type=str, default="CartPole-v0", help="Name of the Environment, default = CartPole-v0")
-    parser.add_argument("-frames", type=int, default=40000, help="Number of frames to train, default = 40000")
-    parser.add_argument("-eval_every", type=int, default=1000, help="Evaluate every x frames, default = 1000")
-    parser.add_argument("-eval_runs", type=int, default=5, help="Number of evaluation runs, default = 5")
+    parser.add_argument("-env", type=str, default="BreakoutNoFrameskip-v4", help="Name of the Environment, default = BreakoutNoFrameskip-v4")
+    parser.add_argument("-frames", type=int, default=10000000, help="Number of frames to train, default = 10 mio")
+    parser.add_argument("-eval_every", type=int, default=250000, help="Evaluate every x frames, default = 250000")
+    parser.add_argument("-eval_runs", type=int, default=2, help="Number of evaluation runs, default = 2")
     parser.add_argument("-seed", type=int, default=1, help="Random seed to replicate training runs, default = 1")
     parser.add_argument("-N", type=int, default=8, help="Number of Quantiles, default = 8")
     parser.add_argument("-munchausen", type=int, default=0, choices=[0,1], help="Use Munchausen RL loss for training if set to 1 (True), default = 0")
@@ -110,13 +111,13 @@ if __name__ == "__main__":
     parser.add_argument("-layer_size", type=int, default=512, help="Size of the hidden layer, default=512")
     parser.add_argument("-n_step", type=int, default=1, help="Multistep IQN, default = 1")
     parser.add_argument("-m", "--memory_size", type=int, default=int(1e5), help="Replay memory size, default = 1e5")
-    parser.add_argument("-lr", type=float, default=5e-4, help="Learning rate, default = 5e-4")
+    parser.add_argument("-lr", type=float, default=0.00025, help="Learning rate, default = 2.5e-4")
     parser.add_argument("-g", "--gamma", type=float, default=0.99, help="Discount factor gamma, default = 0.99")
     parser.add_argument("-t", "--tau", type=float, default=1e-3, help="Soft update parameter tau, default = 1e-3")
-    parser.add_argument("-eps_frames", type=int, default=5000, help="Linear annealed frames for Epsilon, default = 5000")
-    parser.add_argument("-min_eps", type=float, default = 0.025, help="Final epsilon greedy value, default = 0.025")
+    parser.add_argument("-eps_frames", type=int, default=1000000, help="Linear annealed frames for Epsilon, default = 1mio")
+    parser.add_argument("-min_eps", type=float, default = 0.01, help="Final epsilon greedy value, default = 0.01")
     parser.add_argument("-info", type=str, help="Name of the training run")
-    parser.add_argument("-save_model", type=int, choices=[0,1], default=0, help="Specify if the trained network shall be saved or not, default is 0 - not saved!")
+    parser.add_argument("-save_model", type=int, choices=[0,1], default=1, help="Specify if the trained network shall be saved or not, default is 1 - save model!")
     parser.add_argument("-w", "--worker", type=int, default=1, help="Number of parallel Environments. Batch size increases proportional to number of worker. not recommended to have more than 4 worker, default = 1")
 
     args = parser.parse_args()
