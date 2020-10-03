@@ -7,8 +7,10 @@ This implementation allows it also to run and train on several environments in p
 ### Implementations
 - Baseline IQN [Notebook](https://github.com/BY571/IQN/blob/master/IQN-DQN.ipynb)
 - Script Version with all extensions: [IQN](https://github.com/BY571/IQN/blob/master/run.py)
+The IQN Baseline in this repository is already a Double IQN version with target networks! 
 
 ### Extensions
+
 - Dueling IQN
 - Noisy layer
 - N-step bootstrapping 
