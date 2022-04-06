@@ -10,6 +10,10 @@ import gym
 import argparse
 import wrapper
 import MultiPro
+from nes_py.wrappers import JoypadSpace
+import gym_super_mario_bros
+from gym_super_mario_bros.actions import SIMPLE_MOVEMENT
+
 
 def evaluate(eps, frame, eval_runs=5):
     """
@@ -18,11 +22,11 @@ def evaluate(eps, frame, eval_runs=5):
 
     reward_batch = []
     for i in range(eval_runs):
-        state = eval_env.reset()
+        state = env.reset()
         rewards = 0
         while True:
             action = agent.act(np.expand_dims(state, axis=0), 0.001, eval=True)
-            state, reward, done, _ = eval_env.step(action[0].item())
+            state, reward, done, _ = env.step(action[0].item())
             rewards += reward
             if done:
                 break
@@ -53,15 +57,15 @@ def run(frames=1000, eps_fixed=False, eps_frames=1e6, min_eps=0.01, eval_every=1
     eps_start = 1
     d_eps = eps_start - min_eps
     i_episode = 1
-    state = envs.reset()
+    state = env.reset()
     score = 0                  
     for frame in range(1, frames+1):
         action = agent.act(state, eps)
-        next_state, reward, done, _ = envs.step(action) #returns np.stack(obs), np.stack(action) ...
-        for s, a, r, ns, d in zip(state, action, reward, next_state, done):
-            agent.step(s, a, r, ns, d, writer)
+        next_state, reward, done, _ = env.step(action) #returns np.stack(obs), np.stack(action) ...
+        #for s, a, r, ns, d in zip(state, action, reward, next_state, done):
+        agent.step(state, action, reward, next_state, done, writer)
         state = next_state
-        score += np.mean(reward)
+        score += reward
         # linear annealing to the min epsilon value (until eps_frames and from there slowly decease epsilon to 0 until the end of training
         if eps_fixed == False:
             #if frame < eps_frames:
@@ -81,7 +85,7 @@ def run(frames=1000, eps_fixed=False, eps_frames=1e6, min_eps=0.01, eval_every=1
             if i_episode % 100 == 0:
                 print('\rEpisode {}\tFrame {}\tAverage100 Score: {:.2f}'.format(i_episode*worker, frame*worker, np.mean(scores_window)))
             i_episode +=1 
-            state = envs.reset()
+            state = env.reset()
             score = 0              
 
 
@@ -101,8 +105,8 @@ if __name__ == "__main__":
                                                      ], default="iqn", help="Specify which type of IQN agent you want to train, default is IQN - baseline!")
     
     parser.add_argument("-env", type=str, default="BreakoutNoFrameskip-v4", help="Name of the Environment, default = BreakoutNoFrameskip-v4")
-    parser.add_argument("-frames", type=int, default=10000000, help="Number of frames to train, default = 10 mio")
-    parser.add_argument("-eval_every", type=int, default=250000, help="Evaluate every x frames, default = 250000")
+    parser.add_argument("-frames", type=int, default=1_000_000, help="Number of frames to train, default = 10 mio")
+    parser.add_argument("-eval_every", type=int, default=25_000, help="Evaluate every x frames, default = 250000")
     parser.add_argument("-eval_runs", type=int, default=2, help="Number of evaluation runs, default = 2")
     parser.add_argument("-seed", type=int, default=1, help="Random seed to replicate training runs, default = 1")
     parser.add_argument("-N", type=int, default=8, help="Number of Quantiles, default = 8")
@@ -136,21 +140,28 @@ if __name__ == "__main__":
     np.random.seed(seed)
     random.seed(seed)
     torch.manual_seed(seed)
-    if "-ram" in args.env or args.env == "CartPole-v0" or args.env == "LunarLander-v2": 
-        envs = MultiPro.SubprocVecEnv([lambda: gym.make(args.env) for i in range(args.worker)])
-        eval_env = gym.make(args.env)
+    # if "-ram" in args.env or args.env == "CartPole-v0" or args.env == "LunarLander-v2": 
+    #     envs = MultiPro.SubprocVecEnv([lambda: gym.make(args.env) for i in range(args.worker)])
+    #     eval_env = gym.make(args.env)
+    # else:
+    #     envs = MultiPro.SubprocVecEnv([lambda: wrapper.make_env(args.env) for i in range(args.worker)])
+    #     eval_env = wrapper.make_env(args.env)
+    if "SuperMario" in args.env:
+        env = gym_super_mario_bros.make('SuperMarioBros-v0')
+        env = JoypadSpace(env, SIMPLE_MOVEMENT)
+        env = wrapper.make_env(env)
     else:
-        envs = MultiPro.SubprocVecEnv([lambda: wrapper.make_env(args.env) for i in range(args.worker)])
-        eval_env = wrapper.make_env(args.env)
-    envs.seed(seed)
-    eval_env.seed(seed+1)
+        env = gym.make(args.env)
+        env = wrapper.make_env(env)
+    
+    env.seed(seed)
 
-
-    action_size = eval_env.action_space.n
-    state_size = eval_env.observation_space.shape
+    action_size = env.action_space.n
+    state_size = env.observation_space.shape
 
     agent = IQN_Agent(state_size=state_size,    
                         action_size=action_size,
+                        embedding_size=256,
                         network=args.agent,
                         munchausen=args.munchausen,
                         layer_size=args.layer_size,

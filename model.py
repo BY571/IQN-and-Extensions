@@ -5,6 +5,23 @@ import numpy as np
 import math
 
 
+class ImageEncoder(nn.Module):
+    def __init__(self, embedding_size=1024):
+        super(ImageEncoder, self).__init__()
+        
+        self.conv1 = nn.Conv2d(in_channels=4, out_channels=32, kernel_size=4, stride=2)
+        self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2)
+        self.conv3 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=4, stride=2)
+        self.conv4 = nn.Conv2d(in_channels=128, out_channels=256, kernel_size=4, stride=2)
+        self.fc = nn.Identity() if embedding_size == 1024 else nn.Linear(1024, embedding_size)
+    
+    def forward(self, img):
+        x = torch.relu(self.conv1(img))
+        x = torch.relu(self.conv2(x))
+        x = torch.relu(self.conv3(x))
+        x = torch.relu(self.conv4(x))
+        return self.fc(x)
+
 
 class NoisyLinear(nn.Linear):
     # Noisy Linear Layer for independent Gaussian Noise
@@ -47,7 +64,17 @@ def weight_init(layers):
 
 
 class IQN(nn.Module):
-    def __init__(self, state_size, action_size, layer_size, n_step, seed, N, dueling=False, noisy=False, device="cuda:0"):
+    def __init__(self,
+                 state_size,
+                 embedding_size,
+                 action_size,
+                 layer_size,
+                 n_step, 
+                 seed,
+                 N,
+                 dueling=False,
+                 noisy=False,
+                 device="cuda:0"):
         super(IQN, self).__init__()
         self.seed = torch.manual_seed(seed)
         self.input_shape = state_size
@@ -66,13 +93,7 @@ class IQN(nn.Module):
 
         # Network Architecture
         if self.state_dim == 3:
-            self.head = nn.Sequential(
-                nn.Conv2d(4, out_channels=32, kernel_size=8, stride=4),
-                nn.ReLU(),
-                nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2),
-                nn.ReLU(),
-                nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
-            )#.apply() #weight init
+            self.head = ImageEncoder(embedding_size=embedding_size)
             self.cos_embedding = nn.Linear(self.n_cos, self.calc_input_layer())
             self.ff_1 = layer(self.calc_input_layer(), layer_size)
             self.cos_layer_out = self.calc_input_layer()

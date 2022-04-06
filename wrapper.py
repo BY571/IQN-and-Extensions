@@ -52,6 +52,7 @@ class ProcessFrame84(gym.ObservationWrapper):
         super(ProcessFrame84, self).__init__(env)
         self.observation_space = gym.spaces.Box(
         low=0, high=255, shape=(84, 84, 1), dtype=np.uint8)
+
     def observation(self, obs):
         return ProcessFrame84.process(obs)
     
@@ -101,7 +102,6 @@ class ImageToPyTorch(gym.ObservationWrapper):
 class ScaledFloatFrame(gym.ObservationWrapper):
     def observation(self, obs):
         return np.array(obs).astype(np.float32) / 255.0
-
 
 
 def make_env(env_name):
