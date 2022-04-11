@@ -2,8 +2,8 @@ import torch
 from agent import IQN_Agent
 import numpy as np
 import random
-import math
-from torch.utils.tensorboard import SummaryWriter
+
+import wandb
 from collections import deque
 import time
 import gym
@@ -31,8 +31,7 @@ def evaluate(eps, frame, eval_runs=5):
             if done:
                 break
         reward_batch.append(rewards)
-        
-    writer.add_scalar("Reward", np.mean(reward_batch), frame)
+    return np.mean(reward_batch)
 
 
 
@@ -60,10 +59,11 @@ def run(frames=1000, eps_fixed=False, eps_frames=1e6, min_eps=0.01, eval_every=1
     state = env.reset()
     score = 0                  
     for frame in range(1, frames+1):
-        action = agent.act(state, eps)
-        next_state, reward, done, _ = env.step(action) #returns np.stack(obs), np.stack(action) ...
+        action = agent.act(state[None, :, :, :], eps)
+        next_state, reward, done, _ = env.step(action[0]) #returns np.stack(obs), np.stack(action) ...
         #for s, a, r, ns, d in zip(state, action, reward, next_state, done):
-        agent.step(state, action, reward, next_state, done, writer)
+        reward = 0
+        agent.step(state, action, reward, next_state, done, wandb)
         state = next_state
         score += reward
         # linear annealing to the min epsilon value (until eps_frames and from there slowly decease epsilon to 0 until the end of training
@@ -72,21 +72,22 @@ def run(frames=1000, eps_fixed=False, eps_frames=1e6, min_eps=0.01, eval_every=1
             eps = max(eps_start - ((frame*d_eps)/eps_frames), min_eps)
             #else:
             #   eps = max(min_eps - min_eps*((frame-eps_frames)/(frames-eps_frames)), 0.001)
-
-        # evaluation runs
-        if frame % eval_every == 0 or frame == 1:
-            evaluate(eps, frame*worker, eval_runs)
         
-        if done.any():
+        if done:
             scores_window.append(score)       # save most recent score
             scores.append(score)              # save most recent score
-            writer.add_scalar("Average100", np.mean(scores_window), frame*worker)
+            wandb.log({"Average100": np.mean(scores_window)}, step=frame*worker)
             print('\rEpisode {}\tFrame {} \tAverage100 Score: {:.2f}'.format(i_episode*worker, frame*worker, np.mean(scores_window)), end="")
             if i_episode % 100 == 0:
                 print('\rEpisode {}\tFrame {}\tAverage100 Score: {:.2f}'.format(i_episode*worker, frame*worker, np.mean(scores_window)))
             i_episode +=1 
+            # evaluation runs
+            if i_episode % eval_every == 0:
+                eval_rewards = evaluate(eps, frame*worker, eval_runs) 
+                wandb.log({"eval_reward": eval_rewards}, step=frame*worker)
             state = env.reset()
-            score = 0              
+            score = 0
+   
 
 
 
@@ -104,9 +105,9 @@ if __name__ == "__main__":
                                                      "noisy_dueling+per"
                                                      ], default="iqn", help="Specify which type of IQN agent you want to train, default is IQN - baseline!")
     
-    parser.add_argument("-env", type=str, default="BreakoutNoFrameskip-v4", help="Name of the Environment, default = BreakoutNoFrameskip-v4")
+    parser.add_argument("-env", type=str, default="SuperMarioBros-v0", help="Name of the Environment, default = BreakoutNoFrameskip-v4")
     parser.add_argument("-frames", type=int, default=1_000_000, help="Number of frames to train, default = 10 mio")
-    parser.add_argument("-eval_every", type=int, default=25_000, help="Evaluate every x frames, default = 250000")
+    parser.add_argument("-eval_every", type=int, default=5, help="Evaluate every x epochs")
     parser.add_argument("-eval_runs", type=int, default=2, help="Number of evaluation runs, default = 2")
     parser.add_argument("-seed", type=int, default=1, help="Random seed to replicate training runs, default = 1")
     parser.add_argument("-N", type=int, default=8, help="Number of Quantiles, default = 8")
@@ -125,7 +126,7 @@ if __name__ == "__main__":
     parser.add_argument("-w", "--worker", type=int, default=1, help="Number of parallel Environments. Batch size increases proportional to number of worker. not recommended to have more than 4 worker, default = 1")
 
     args = parser.parse_args()
-    writer = SummaryWriter("runs/"+args.info)       
+
     seed = args.seed
     BUFFER_SIZE = args.memory_size
     BATCH_SIZE = args.batch_size
@@ -147,7 +148,7 @@ if __name__ == "__main__":
     #     envs = MultiPro.SubprocVecEnv([lambda: wrapper.make_env(args.env) for i in range(args.worker)])
     #     eval_env = wrapper.make_env(args.env)
     if "SuperMario" in args.env:
-        env = gym_super_mario_bros.make('SuperMarioBros-v0')
+        env = gym_super_mario_bros.make(args.env)
         env = JoypadSpace(env, SIMPLE_MOVEMENT)
         env = wrapper.make_env(env)
     else:
@@ -161,7 +162,7 @@ if __name__ == "__main__":
 
     agent = IQN_Agent(state_size=state_size,    
                         action_size=action_size,
-                        embedding_size=256,
+                        embedding_size=1024,
                         network=args.agent,
                         munchausen=args.munchausen,
                         layer_size=args.layer_size,
@@ -173,8 +174,7 @@ if __name__ == "__main__":
                         GAMMA=GAMMA,  
                         N=args.N,
                         worker=args.worker,
-                        device=device, 
-                        seed=seed)
+                        device=device)
 
 
 
@@ -184,10 +184,8 @@ if __name__ == "__main__":
     else:
         eps_fixed = False
 
-    t0 = time.time()
-    run(frames = args.frames//args.worker, eps_fixed=eps_fixed, eps_frames=args.eps_frames//args.worker, min_eps=args.min_eps, eval_every=args.eval_every//args.worker, eval_runs=args.eval_runs, worker=args.worker)
-    t1 = time.time()
-    
-    print("Training time: {}min".format(round((t1-t0)/60,2)))
+    with wandb.init(project="IQN", name="iqn", config=args):
+        run(frames = args.frames//args.worker, eps_fixed=eps_fixed, eps_frames=args.eps_frames//args.worker, min_eps=args.min_eps, eval_every=args.eval_every//args.worker, eval_runs=args.eval_runs, worker=args.worker)
+
     if args.save_model:
         torch.save(agent.qnetwork_local.state_dict(), args.info+".pth")

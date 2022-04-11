@@ -1,10 +1,10 @@
+from errno import EMEDIUMTYPE
 import torch
 import numpy as np
 import torch.optim as optim
 from torch.nn.utils import clip_grad_norm_
 import torch.nn.functional as F
 import random
-import math
 from ReplayBuffers import ReplayBuffer, PrioritizedReplay
 from model import IQN
 
@@ -13,6 +13,7 @@ class IQN_Agent():
 
     def __init__(self,
                  state_size,
+                 embedding_size,
                  action_size,
                  network,
                  munchausen,
@@ -25,8 +26,7 @@ class IQN_Agent():
                  GAMMA,
                  N,
                  worker,
-                 device,
-                 seed):
+                 device):
         """Initialize an Agent object.
         
         Params
@@ -41,14 +41,11 @@ class IQN_Agent():
             GAMMA (float): discount factor
             UPDATE_EVERY (int): update frequency
             device (str): device that is used for the compute
-            seed (int): random seed
         """
         self.state_size = state_size
         self.action_size = action_size
         self.network = network
         self.munchausen = munchausen
-        self.seed = random.seed(seed)
-        self.seed_t = torch.manual_seed(seed)
         self.device = device
         self.TAU = TAU
         self.N = N
@@ -77,8 +74,24 @@ class IQN_Agent():
 
         
         # IQN-Network
-        self.qnetwork_local = IQN(state_size, action_size,layer_size, n_step, seed, N, dueling=duel, noisy=noisy, device=device).to(device)
-        self.qnetwork_target = IQN(state_size, action_size,layer_size, n_step, seed,N, dueling=duel, noisy=noisy, device=device).to(device)
+        self.qnetwork_local = IQN(state_size,
+                                  embedding_size=embedding_size,
+                                  action_size=action_size,
+                                  layer_size=layer_size,
+                                  n_step=n_step,
+                                  N=N,
+                                  dueling=duel,
+                                  noisy=noisy,
+                                  device=device).to(device)
+        self.qnetwork_target = IQN(state_size,
+                                   embedding_size=embedding_size,
+                                   action_size=action_size,
+                                   layer_size=layer_size,
+                                   n_step=n_step,
+                                   N=N,
+                                   dueling=duel,
+                                   noisy=noisy,
+                                   device=device).to(device)
 
         self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
         print(self.qnetwork_local)
@@ -86,10 +99,10 @@ class IQN_Agent():
         # Replay memory
         if "per" in self.network:
             self.per = 1
-            self.memory = PrioritizedReplay(BUFFER_SIZE, self.BATCH_SIZE, seed=seed, gamma=self.GAMMA, n_step=n_step, parallel_env=worker)
+            self.memory = PrioritizedReplay(BUFFER_SIZE, self.BATCH_SIZE, gamma=self.GAMMA, n_step=n_step, parallel_env=worker)
         else:
             self.per = 0
-            self.memory = ReplayBuffer(BUFFER_SIZE, self.BATCH_SIZE, self.device, seed, self.GAMMA, n_step, worker)
+            self.memory = ReplayBuffer(BUFFER_SIZE, self.BATCH_SIZE, self.device, self.GAMMA, n_step, worker)
         
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
@@ -109,7 +122,7 @@ class IQN_Agent():
                 else:
                     loss = self.learn_per(experiences)
                 self.Q_updates += 1
-                writer.add_scalar("Q_loss", loss, self.Q_updates)
+                writer.log({"Q_loss": loss, "qupdates": self.Q_updates})
 
     def act(self, state, eps=0., eval=False):
         """Returns actions for given state as per current policy. Acting only every 4 frames!

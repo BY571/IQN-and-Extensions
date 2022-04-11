@@ -20,6 +20,7 @@ class ImageEncoder(nn.Module):
         x = torch.relu(self.conv2(x))
         x = torch.relu(self.conv3(x))
         x = torch.relu(self.conv4(x))
+        x = x.view(-1, 2304)
         return self.fc(x)
 
 
@@ -69,14 +70,12 @@ class IQN(nn.Module):
                  embedding_size,
                  action_size,
                  layer_size,
-                 n_step, 
-                 seed,
+                 n_step,
                  N,
                  dueling=False,
                  noisy=False,
                  device="cuda:0"):
         super(IQN, self).__init__()
-        self.seed = torch.manual_seed(seed)
         self.input_shape = state_size
         self.state_dim = len(self.input_shape)
         self.action_size = action_size

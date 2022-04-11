@@ -7,7 +7,7 @@ import torch
 class ReplayBuffer:
     """Fixed-size buffer to store experience tuples."""
 
-    def __init__(self, buffer_size, batch_size, device, seed, gamma, n_step=1, parallel_env=4):
+    def __init__(self, buffer_size, batch_size, device, gamma, seed=1, n_step=1, parallel_env=4):
         """Initialize a ReplayBuffer object.
         Params
         ======
@@ -68,7 +68,7 @@ class PrioritizedReplay(object):
     """
     Proportional Prioritization
     """
-    def __init__(self, capacity, batch_size, seed, gamma=0.99, n_step=1, alpha=0.6, beta_start = 0.4, beta_frames=100000, parallel_env=4):
+    def __init__(self, capacity, batch_size, seed=1, gamma=0.99, n_step=1, alpha=0.6, beta_start = 0.4, beta_frames=100000, parallel_env=4):
         self.alpha = alpha
         self.beta_start = beta_start
         self.beta_frames = beta_frames

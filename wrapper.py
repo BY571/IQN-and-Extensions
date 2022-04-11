@@ -62,13 +62,20 @@ class ProcessFrame84(gym.ObservationWrapper):
             img = np.reshape(frame, [210, 160, 3]).astype(np.float32)
         elif frame.size == 250 * 160 * 3:
             img = np.reshape(frame, [250, 160, 3]).astype(np.float32)
+        elif frame.size == 240 * 256 * 3:
+            img = np.reshape(frame, [240, 256, 3]).astype(np.float32)
         else:
             assert False, "Unknown resolution."
-        img = img[:, :, 0] * 0.299 + img[:, :, 1] * 0.587 + \
-              img[:, :, 2] * 0.114
-        resized_screen = cv2.resize(img, (84, 110), interpolation=cv2.INTER_AREA)
-        x_t = resized_screen[18:102, :]
-        x_t = np.reshape(x_t, [84, 84, 1])
+        # if img.shape == (240, 256, 3):
+        resized_screen = cv2.resize(img, (84, 84), interpolation=cv2.INTER_AREA)
+        img = cv2.cvtColor(resized_screen, cv2.COLOR_BGR2GRAY)
+        x_t = img[:, :, None]
+        # else:
+        #     img = img[:, :, 0] * 0.299 + img[:, :, 1] * 0.587 + \
+        #         img[:, :, 2] * 0.114
+        #     resized_screen = cv2.resize(img, (84, 110), interpolation=cv2.INTER_AREA)
+        #     x_t = resized_screen[18:102, :]
+        #     x_t = np.reshape(x_t, [84, 84, 1])
         return x_t.astype(np.uint8)
 
 class BufferWrapper(gym.ObservationWrapper):
@@ -104,10 +111,9 @@ class ScaledFloatFrame(gym.ObservationWrapper):
         return np.array(obs).astype(np.float32) / 255.0
 
 
-def make_env(env_name):
-    env = gym.make(env_name)
+def make_env(env):
     env = MaxAndSkipEnv(env)
-    env = FireResetEnv(env)
+    # env = FireResetEnv(env)
     env = ProcessFrame84(env)
     env = ImageToPyTorch(env)
     env = BufferWrapper(env, 4)
