@@ -77,8 +77,8 @@ class IQN_Agent():
 
         
         # IQN-Network
-        self.qnetwork_local = IQN(state_size, action_size,layer_size, n_step, seed, N, dueling=duel, noisy=noisy, device=device).to(device)
-        self.qnetwork_target = IQN(state_size, action_size,layer_size, n_step, seed,N, dueling=duel, noisy=noisy, device=device).to(device)
+        self.qnetwork_local = IQN(state_size, action_size,layer_size, n_step, seed, self.K, dueling=duel, noisy=noisy, device=device).to(device)
+        self.qnetwork_target = IQN(state_size, action_size,layer_size, n_step, seed, self.K, dueling=duel, noisy=noisy, device=device).to(device)
 
         self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
         print(self.qnetwork_local)
